@@ -49,6 +49,7 @@ class TelegramClient:
             "telegram_send_message_rejected",
             extra={"data": {"status_code": response.status_code, "telegram_ok": ok}},
         )
+        print(f"\n--- ERRO DO TELEGRAM ---\n{body}\n------------------------\n")
         return False
 
     def _safe_json(self, response: Any) -> dict[str, Any]:

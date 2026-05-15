@@ -23,11 +23,13 @@ class TelegramPublisherService:
             logger.info("telegram_publish_skipped", extra={"data": {"reason": "no_unpublished_offers"}})
             return False
 
+        current_offer_id = str(offer.offer_id)
+
         message = self._format_offer_message(offer)
         sent = await self._telegram_client.send_message(message)
         if not sent:
             await self._session.rollback()
-            logger.warning("telegram_publish_failed", extra={"data": {"offer_id": offer.offer_id}})
+            logger.warning("telegram_publish_failed", extra={"data": {"offer_id": current_offer_id}})
             return False
 
         offer.is_published = True
@@ -35,10 +37,10 @@ class TelegramPublisherService:
             await self._session.commit()
         except Exception:
             await self._session.rollback()
-            logger.exception("telegram_publish_commit_failed", extra={"data": {"offer_id": offer.offer_id}})
+            logger.exception("telegram_publish_commit_failed", extra={"data": {"offer_id": current_offer_id}})
             return False
 
-        logger.info("telegram_offer_published", extra={"data": {"offer_id": offer.offer_id}})
+        logger.info("telegram_offer_published", extra={"data": {"offer_id": current_offer_id}})
         return True
 
     async def _get_next_unpublished_offer(self) -> ShopeeOffer | None:

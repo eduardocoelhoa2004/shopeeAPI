@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 NonEmptySecret = Annotated[SecretStr, Field(min_length=1)]
 Port = Annotated[int, Field(gt=0, lt=65536)]
+SettingsT = TypeVar("SettingsT", bound=BaseSettings)
+
+
+def _load_settings(settings_type: type[SettingsT]) -> SettingsT:
+    return settings_type()
 
 
 class AppSettings(BaseSettings):
@@ -91,6 +96,20 @@ class TelegramSettings(BaseSettings):
     base_url: NonEmptyStr = "https://api.telegram.org"
 
 
+class XSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="X_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    api_key: NonEmptySecret
+    api_secret: NonEmptySecret
+    access_token: NonEmptySecret
+    access_secret: NonEmptySecret
+
+
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -98,11 +117,20 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    app: AppSettings = Field(default_factory=AppSettings)
-    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    security: SecuritySettings = Field(default_factory=SecuritySettings)
-    shopee: ShopeeSettings = Field(default_factory=ShopeeSettings)
-    telegram: TelegramSettings = Field(default_factory=TelegramSettings)
+    app: AppSettings = Field(default_factory=lambda: _load_settings(AppSettings))
+    database: DatabaseSettings = Field(
+        default_factory=lambda: _load_settings(DatabaseSettings)
+    )
+    security: SecuritySettings = Field(
+        default_factory=lambda: _load_settings(SecuritySettings)
+    )
+    shopee: ShopeeSettings = Field(
+        default_factory=lambda: _load_settings(ShopeeSettings)
+    )
+    telegram: TelegramSettings = Field(
+        default_factory=lambda: _load_settings(TelegramSettings)
+    )
+    x: XSettings = Field(default_factory=lambda: _load_settings(XSettings))
 
 
 @lru_cache

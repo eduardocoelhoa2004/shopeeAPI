@@ -17,6 +17,10 @@ REQUIRED_ENV_DEFAULTS = {
     "SHOPEE_BASE_URL": "https://open-api.affiliate.shopee.com.br",
     "TELEGRAM_BOT_TOKEN": "dummy-token",
     "TELEGRAM_CHAT_ID": "dummy-chat",
+    "X_API_KEY": "dummy-api-key",
+    "X_API_SECRET": "dummy-api-secret",
+    "X_ACCESS_TOKEN": "dummy-access-token",
+    "X_ACCESS_SECRET": "dummy-access-secret",
 }
 
 

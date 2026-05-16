@@ -96,18 +96,16 @@ class TelegramSettings(BaseSettings):
     base_url: NonEmptyStr = "https://api.telegram.org"
 
 
-class XSettings(BaseSettings):
+class FacebookSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="X_",
+        env_prefix="FACEBOOK_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    api_key: NonEmptySecret
-    api_secret: NonEmptySecret
+    page_id: NonEmptyStr
     access_token: NonEmptySecret
-    access_secret: NonEmptySecret
 
 
 class AppConfig(BaseSettings):
@@ -130,7 +128,7 @@ class AppConfig(BaseSettings):
     telegram: TelegramSettings = Field(
         default_factory=lambda: _load_settings(TelegramSettings)
     )
-    x: XSettings = Field(default_factory=lambda: _load_settings(XSettings))
+    facebook: FacebookSettings = Field(default_factory=FacebookSettings)
 
 
 @lru_cache

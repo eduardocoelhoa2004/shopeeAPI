@@ -46,19 +46,29 @@ class ShopeeOfferService:
             or offer.get("id")
         )
         if not offer_id:
-            logger.info("shopee_offer_skipped", extra={"data": {"reason": "missing_offer_id"}})
+            logger.info(
+                "shopee_offer_skipped", extra={"data": {"reason": "missing_offer_id"}}
+            )
             return "skipped"
 
         if await self._offer_exists(offer_id):
-            logger.info("shopee_offer_skipped", extra={"data": {"reason": "duplicate", "offer_id": offer_id}})
+            logger.info(
+                "shopee_offer_skipped",
+                extra={"data": {"reason": "duplicate", "offer_id": offer_id}},
+            )
             return "skipped"
 
         mapped = self._map_offer_fields(offer)
         if mapped is None:
-            logger.info("shopee_offer_skipped", extra={"data": {"reason": "invalid_payload", "offer_id": offer_id}})
+            logger.info(
+                "shopee_offer_skipped",
+                extra={"data": {"reason": "invalid_payload", "offer_id": offer_id}},
+            )
             return "skipped"
 
-        short_result = await self._client.generate_short_link(original_url=mapped["original_url"])
+        short_result = await self._client.generate_short_link(
+            original_url=mapped["original_url"]
+        )
         if not short_result.get("success"):
             logger.warning(
                 "shopee_offer_short_link_failed",
@@ -83,6 +93,7 @@ class ShopeeOfferService:
             short_url=short_url,
             is_published=False,
             is_published_x=False,
+            is_published_facebook=False,
         )
 
         try:
@@ -92,8 +103,13 @@ class ShopeeOfferService:
             return "inserted"
         except IntegrityError as exc:
             await self._session.rollback()
-            logger.error(f"\n--- ERRO REAL DO POSTGRESQL ---\n{exc}\n-------------------------------\n")
-            logger.info("shopee_offer_skipped", extra={"data": {"reason": "duplicate", "offer_id": offer_id}})
+            logger.error(
+                f"\n--- ERRO REAL DO POSTGRESQL ---\n{exc}\n-------------------------------\n"
+            )
+            logger.info(
+                "shopee_offer_skipped",
+                extra={"data": {"reason": "duplicate", "offer_id": offer_id}},
+            )
             return "skipped"
         except Exception:
             await self._session.rollback()
@@ -115,7 +131,14 @@ class ShopeeOfferService:
             nodes = data.get("productOfferV2", {}).get("nodes")
         elif isinstance(data.get("getOfferList"), dict):
             nodes = data.get("getOfferList", {}).get("nodes")
-        offers = nodes or data.get("nodes") or data.get("offers") or data.get("list") or data.get("items") or []
+        offers = (
+            nodes
+            or data.get("nodes")
+            or data.get("offers")
+            or data.get("list")
+            or data.get("items")
+            or []
+        )
         if isinstance(offers, list):
             return [item for item in offers if isinstance(item, dict)]
         return []

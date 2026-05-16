@@ -38,6 +38,7 @@ dist/
 *.sqlite3
 *.log
 logs/
+cookies.json
 
 # Editor and OS files
 .vscode/
@@ -51,5 +52,4 @@ Desktop.ini
 #IA - Generated files
 IA_INST.md
 PLAN.md
-
 

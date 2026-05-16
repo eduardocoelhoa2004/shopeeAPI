@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.modules.facebook.client import FacebookClient
+from src.modules.facebook.service import FacebookPublisherService
 from src.modules.shopee.models import ShopeeOffer
-from src.modules.x.service import XPublisherService
 
 
 class FakeScalarResult:
@@ -32,71 +35,81 @@ class FakeSession:
         self.rolled_back = True
 
 
-class FakeXClient:
+class FakeFacebookClient:
     def __init__(self, posted: bool = True) -> None:
         self._posted = posted
         self.message: str | None = None
+        self.link: str | None = None
 
-    async def post_tweet(self, text: str) -> bool:
-        self.message = text
+    async def post_offer(self, message: str, link: str) -> bool:
+        self.message = message
+        self.link = link
         return self._posted
 
 
 def _offer() -> ShopeeOffer:
     return ShopeeOffer(
         offer_id="offer-1",
-        name="Produto Especial",
+        name="Produto   Especial",
         price=19.9,
         commission_rate=12.5,
         original_url="https://example.com/original",
         short_url="https://example.com/short",
         is_published=False,
         is_published_x=False,
+        is_published_facebook=False,
         created_at=datetime.now(timezone.utc),
     )
 
 
-def test_publish_next_offer_posts_tweet_and_marks_as_published_x() -> None:
+def test_publish_next_offer_posts_to_facebook_and_marks_as_published() -> None:
     offer = _offer()
     session = FakeSession(offer)
-    x_client = FakeXClient()
-    service = XPublisherService(session=session, x_client=x_client)
+    facebook_client = FakeFacebookClient()
+    service = FacebookPublisherService(
+        session=cast(AsyncSession, session),
+        facebook_client=cast(FacebookClient, facebook_client),
+    )
 
     published = asyncio.run(service.publish_next_offer())
 
     assert published is True
-    assert offer.is_published_x is True
+    assert offer.is_published_facebook is True
     assert session.committed is True
     assert session.rolled_back is False
-    assert x_client.message == (
-        "Produto Especial\n\n"
-        "Por apenas: R$ 19,90\n"
-        "Compre aqui: https://example.com/short\n\n"
-        "#AchadosDaShopee #Promocao #Desconto"
+    assert facebook_client.message == (
+        "Produto Especial\n\n" "Por apenas: R$ 19,90\n\n" "#AchadosDaShopee #Ofertas"
     )
+    assert facebook_client.link == "https://example.com/short"
 
 
 def test_publish_next_offer_rolls_back_when_post_fails() -> None:
     offer = _offer()
     session = FakeSession(offer)
-    x_client = FakeXClient(posted=False)
-    service = XPublisherService(session=session, x_client=x_client)
+    facebook_client = FakeFacebookClient(posted=False)
+    service = FacebookPublisherService(
+        session=cast(AsyncSession, session),
+        facebook_client=cast(FacebookClient, facebook_client),
+    )
 
     published = asyncio.run(service.publish_next_offer())
 
     assert published is False
-    assert offer.is_published_x is False
+    assert offer.is_published_facebook is False
     assert session.committed is False
     assert session.rolled_back is True
 
 
 def test_publish_next_offer_returns_false_when_queue_is_empty() -> None:
     session = FakeSession(None)
-    x_client = FakeXClient()
-    service = XPublisherService(session=session, x_client=x_client)
+    facebook_client = FakeFacebookClient()
+    service = FacebookPublisherService(
+        session=cast(AsyncSession, session),
+        facebook_client=cast(FacebookClient, facebook_client),
+    )
 
     published = asyncio.run(service.publish_next_offer())
 
     assert published is False
     assert session.committed is False
-    assert x_client.message is None
+    assert facebook_client.message is None

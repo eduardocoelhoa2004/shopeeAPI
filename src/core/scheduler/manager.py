@@ -99,15 +99,15 @@ def start_scheduler(
         max_instances=1,
         coalesce=True,
     )
-    #scheduler.add_job(
-    #   _run_facebook_job,
-    #    "interval",
-    #    minutes=facebook_interval_minutes,
-    #    id="facebook_publish_job",
-    #    replace_existing=True,
-    #    max_instances=1,
-    #    coalesce=True,
-    #)
+    scheduler.add_job(
+        _run_facebook_job,
+        "interval",
+        minutes=facebook_interval_minutes,
+        id="facebook_publish_job",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "scheduler_started",

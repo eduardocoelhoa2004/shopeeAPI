@@ -92,7 +92,6 @@ class ShopeeOfferService:
             original_url=mapped["original_url"],
             short_url=short_url,
             is_published=False,
-            is_published_x=False,
             is_published_facebook=False,
         )
 

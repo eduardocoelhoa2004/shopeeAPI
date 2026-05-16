@@ -108,6 +108,17 @@ class FacebookSettings(BaseSettings):
     access_token: NonEmptySecret
 
 
+class GeminiSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="GEMINI_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    api_key: NonEmptySecret
+
+
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -129,6 +140,9 @@ class AppConfig(BaseSettings):
         default_factory=lambda: _load_settings(TelegramSettings)
     )
     facebook: FacebookSettings = Field(default_factory=FacebookSettings)
+    gemini: GeminiSettings = Field(
+        default_factory=lambda: _load_settings(GeminiSettings)
+    )
 
 
 @lru_cache

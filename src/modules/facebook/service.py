@@ -5,6 +5,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.infrastructure.external_apis.gemini import GeminiClient
 from src.modules.facebook.client import FacebookClient
 from src.modules.shopee.models import ShopeeOffer
 
@@ -14,9 +15,15 @@ HASHTAGS = "#AchadosDaShopee #Ofertas"
 
 
 class FacebookPublisherService:
-    def __init__(self, session: AsyncSession, facebook_client: FacebookClient) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        facebook_client: FacebookClient,
+        gemini_client: GeminiClient,
+    ) -> None:
         self._session = session
         self._facebook_client = facebook_client
+        self._gemini_client = gemini_client
 
     async def publish_next_offer(self) -> bool:
         offer = await self._get_next_unpublished_offer()
@@ -28,7 +35,7 @@ class FacebookPublisherService:
             return False
 
         current_offer_id = str(offer.offer_id)
-        message = self._format_offer_message(offer)
+        message = await self._format_offer_message(offer)
         try:
             published = await self._facebook_client.post_offer(
                 message=message,
@@ -78,13 +85,24 @@ class FacebookPublisherService:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    def _format_offer_message(self, offer: ShopeeOffer) -> str:
+    async def _format_offer_message(self, offer: ShopeeOffer) -> str:
         name = " ".join(offer.name.split())
         price = self._format_price(offer.price)
-        return f"{name}\n\nPor apenas: {price}\n\n{HASHTAGS}"
+        fallback = f"{name}\n\nPor apenas: {price}\n\n{HASHTAGS}"
+        ai_copy = await self._gemini_client.generate_caption(
+            name,
+            price,
+            offer.short_url,
+        )
+        if ai_copy:
+            cleaned = ai_copy.strip()
+            if cleaned:
+                return cleaned
+        return fallback
 
     def _format_price(self, price: float) -> str:
         formatted = (
             f"{price:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
         )
         return f"R$ {formatted}"
+

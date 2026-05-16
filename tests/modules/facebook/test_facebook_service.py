@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.infrastructure.external_apis.gemini import GeminiClient
 from src.modules.facebook.client import FacebookClient
 from src.modules.facebook.service import FacebookPublisherService
 from src.modules.shopee.models import ShopeeOffer
@@ -47,6 +48,14 @@ class FakeFacebookClient:
         return self._posted
 
 
+class FakeGeminiClient:
+    def __init__(self, caption: str | None = None) -> None:
+        self._caption = caption
+
+    async def generate_caption(self, name: str, price: str, url: str) -> str | None:
+        return self._caption
+
+
 def _offer() -> ShopeeOffer:
     return ShopeeOffer(
         offer_id="offer-1",
@@ -56,7 +65,6 @@ def _offer() -> ShopeeOffer:
         original_url="https://example.com/original",
         short_url="https://example.com/short",
         is_published=False,
-        is_published_x=False,
         is_published_facebook=False,
         created_at=datetime.now(timezone.utc),
     )
@@ -66,9 +74,11 @@ def test_publish_next_offer_posts_to_facebook_and_marks_as_published() -> None:
     offer = _offer()
     session = FakeSession(offer)
     facebook_client = FakeFacebookClient()
+    gemini_client = FakeGeminiClient()
     service = FacebookPublisherService(
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
+        gemini_client=cast(GeminiClient, gemini_client),
     )
 
     published = asyncio.run(service.publish_next_offer())
@@ -87,9 +97,11 @@ def test_publish_next_offer_rolls_back_when_post_fails() -> None:
     offer = _offer()
     session = FakeSession(offer)
     facebook_client = FakeFacebookClient(posted=False)
+    gemini_client = FakeGeminiClient()
     service = FacebookPublisherService(
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
+        gemini_client=cast(GeminiClient, gemini_client),
     )
 
     published = asyncio.run(service.publish_next_offer())
@@ -103,9 +115,11 @@ def test_publish_next_offer_rolls_back_when_post_fails() -> None:
 def test_publish_next_offer_returns_false_when_queue_is_empty() -> None:
     session = FakeSession(None)
     facebook_client = FakeFacebookClient()
+    gemini_client = FakeGeminiClient()
     service = FacebookPublisherService(
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
+        gemini_client=cast(GeminiClient, gemini_client),
     )
 
     published = asyncio.run(service.publish_next_offer())

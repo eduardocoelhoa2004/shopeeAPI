@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -31,8 +32,10 @@ class ImageGeneratorService:
             # Tenta carregar o template, assumindo que ele existirá (ex: top_deals.html)
             template = self.jinja_env.get_template("top_deals.html")
             
-            # Renderiza o HTML passando as ofertas como contexto
-            html_content = template.render(offers=offers_data)
+            base_dir_uri = Path(os.getcwd()).as_uri()
+
+            # Renderiza o HTML passando as ofertas e o diretório base como contexto
+            html_content = template.render(offers=offers_data, base_dir_uri=base_dir_uri)
         except Exception:
             logger.exception("jinja2_render_failed")
             raise
@@ -43,9 +46,11 @@ class ImageGeneratorService:
                 browser = await p.chromium.launch(headless=True)
                 
                 # Cria uma nova página com a viewport para formato feed/post (1080x1350)
-                context = await browser.new_context(viewport={"width": 1080, "height": 1350})
+                context = await browser.new_context(
+                    viewport={"width": 1080, "height": 1350},
+                )
                 page = await context.new_page()
-                
+
                 # Define o conteúdo da página com o HTML renderizado
                 # wait_until="networkidle" aguarda o carregamento completo das imagens da rede
                 await page.set_content(html_content, wait_until="networkidle")

@@ -7,9 +7,15 @@ from typing import Any, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.external_apis.gemini import GeminiClient
+from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FacebookClient
 from src.modules.facebook.service import FacebookPublisherService
 from src.modules.shopee.models import ShopeeOffer
+
+
+class FakeImageGenerator:
+    async def generate_top_deals_image(self, offers_data: list[dict[str, Any]], output_path: str) -> str:
+        return output_path
 
 
 class FakeScalarResult:
@@ -85,6 +91,7 @@ def test_publish_next_offer_posts_to_facebook_and_marks_as_published() -> None:
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
         gemini_client=cast(GeminiClient, gemini_client),
+        image_generator=cast(ImageGeneratorService, FakeImageGenerator()),
     )
 
     published = asyncio.run(service.publish_next_offer())
@@ -108,6 +115,7 @@ def test_publish_next_offer_rolls_back_when_post_fails() -> None:
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
         gemini_client=cast(GeminiClient, gemini_client),
+        image_generator=cast(ImageGeneratorService, FakeImageGenerator()),
     )
 
     published = asyncio.run(service.publish_next_offer())
@@ -126,6 +134,7 @@ def test_publish_next_offer_returns_false_when_queue_is_empty() -> None:
         session=cast(AsyncSession, session),
         facebook_client=cast(FacebookClient, facebook_client),
         gemini_client=cast(GeminiClient, gemini_client),
+        image_generator=cast(ImageGeneratorService, FakeImageGenerator()),
     )
 
     published = asyncio.run(service.publish_next_offer())

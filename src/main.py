@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
+
+# --- FIX PARA O PLAYWRIGHT NO WINDOWS ---
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+# ----------------------------------------
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse

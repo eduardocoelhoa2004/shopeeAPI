@@ -11,6 +11,7 @@ from src.core.config.settings import settings
 from src.infrastructure.database.session import AsyncSessionLocal
 from src.infrastructure.external_apis.gemini import GEMINI_API_BASE_URL, GeminiClient
 from src.infrastructure.external_apis.http_client import AsyncHttpClient
+from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FACEBOOK_GRAPH_API_BASE_URL, FacebookClient
 from src.modules.facebook.service import FacebookPublisherService
 from src.modules.shopee.client import ShopeeAffiliateClient
@@ -84,10 +85,12 @@ async def _run_facebook_job() -> None:
             ) as gemini_http_client:
                 client = FacebookClient(http_client=facebook_http_client)
                 gemini_client = GeminiClient(http_client=gemini_http_client)
+                image_generator = ImageGeneratorService()
                 service = FacebookPublisherService(
                     session=session,
                     facebook_client=client,
                     gemini_client=gemini_client,
+                    image_generator=image_generator,
                 )
                 published = await service.publish_text_batch(batch_size=4)
     logger.info(

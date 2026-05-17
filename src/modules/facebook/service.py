@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.external_apis.gemini import GeminiClient
+from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FacebookClient
 from src.modules.shopee.models import ShopeeOffer
 
@@ -20,10 +21,12 @@ class FacebookPublisherService:
         session: AsyncSession,
         facebook_client: FacebookClient,
         gemini_client: GeminiClient,
+        image_generator: ImageGeneratorService,
     ) -> None:
         self._session = session
         self._facebook_client = facebook_client
         self._gemini_client = gemini_client
+        self._image_generator = image_generator
 
     async def publish_next_offer(self) -> bool:
         offers = await self._get_next_unpublished_offers(limit=1)
@@ -115,6 +118,26 @@ class FacebookPublisherService:
             logger.exception("facebook_text_batch_publish_error")
             await self._session.rollback()
             return False
+
+    async def preview_offer_batch_image(self, batch_size: int = 4) -> str | None:
+        offers = await self._get_next_unpublished_offers(limit=batch_size)
+        if not offers or len(offers) == 0:
+            logger.info("facebook_preview_skipped", extra={"data": {"reason": "no_offers"}})
+            return None
+
+        image_data: list[dict[str, str | None]] = []
+        for offer in offers:
+            image_data.append({
+                "image_url": offer.image_url,
+                "price": self._format_price(offer.price),
+            })
+
+        output_path = "preview_top_deals.jpg"
+        await self._image_generator.generate_top_deals_image(
+            offers_data=image_data,
+            output_path=output_path,
+        )
+        return output_path
 
     async def _get_next_unpublished_offers(self, limit: int = 4) -> list[ShopeeOffer]:
         stmt = (

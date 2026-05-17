@@ -19,6 +19,12 @@ class FakeScalarResult:
     def scalar_one_or_none(self) -> ShopeeOffer | None:
         return self._offer
 
+    def scalars(self) -> FakeScalarResult:
+        return self
+
+    def all(self) -> list[ShopeeOffer]:
+        return [self._offer] if self._offer else []
+
 
 class FakeSession:
     def __init__(self, offer: ShopeeOffer | None) -> None:

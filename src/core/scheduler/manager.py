@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import logging
 from datetime import timezone
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.core.config.settings import settings
 from src.infrastructure.database.session import AsyncSessionLocal
 from src.infrastructure.external_apis.gemini import GEMINI_API_BASE_URL, GeminiClient
 from src.infrastructure.external_apis.http_client import AsyncHttpClient
-from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FACEBOOK_GRAPH_API_BASE_URL, FacebookClient
 from src.modules.facebook.service import FacebookPublisherService
 from src.modules.shopee.client import ShopeeAffiliateClient
@@ -19,67 +20,80 @@ from src.modules.telegram.service import TelegramPublisherService
 
 logger = logging.getLogger("app.scheduler")
 
+_MAX_RETRIES = 3
 
+
+def _job_retry_decorator(job_name: str) -> Any:
+    return retry(
+        stop=stop_after_attempt(_MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, min=5, max=60),
+        retry=retry_if_exception_type(Exception),
+        before_sleep=lambda retry_state: logger.warning(
+            "job_retry",
+            extra={
+                "data": {
+                    "job": job_name,
+                    "attempt": retry_state.attempt_number,
+                    "error": str(retry_state.outcome.exception()) if retry_state.outcome else "unknown",
+                }
+            },
+        ),
+        reraise=True,
+    )
+
+
+@_job_retry_decorator("shopee_offer_job")
 async def _run_shopee_job(limit: int) -> None:
     logger.info("shopee_offer_job_started", extra={"data": {"limit": limit}})
-    try:
-        async with AsyncSessionLocal() as session:
-            async with AsyncHttpClient(
-                base_url=settings.shopee.base_url
-            ) as http_client:
-                client = ShopeeAffiliateClient(http_client=http_client)
-                service = ShopeeOfferService(session=session, client=client)
-                summary = await service.fetch_and_process_offers(limit=limit)
-        logger.info("shopee_offer_job_finished", extra={"data": summary})
-    except Exception:
-        logger.exception("shopee_offer_job_failed")
+    async with AsyncSessionLocal() as session:
+        async with AsyncHttpClient(
+            base_url=settings.shopee.base_url
+        ) as http_client:
+            client = ShopeeAffiliateClient(http_client=http_client)
+            service = ShopeeOfferService(session=session, client=client)
+            summary = await service.fetch_and_process_offers(limit=limit)
+    logger.info("shopee_offer_job_finished", extra={"data": summary})
 
 
+@_job_retry_decorator("telegram_publish_job")
 async def _run_telegram_job() -> None:
     logger.info("telegram_publish_job_started")
-    try:
-        async with AsyncSessionLocal() as session:
-            async with AsyncHttpClient(
-                base_url=settings.telegram.base_url
-            ) as http_client:
-                client = TelegramClient(http_client=http_client)
-                service = TelegramPublisherService(
-                    session=session, telegram_client=client
-                )
-                published = await service.publish_next_offer()
-        logger.info(
-            "telegram_publish_job_finished", extra={"data": {"published": published}}
-        )
-    except Exception:
-        logger.exception("telegram_publish_job_failed")
+    async with AsyncSessionLocal() as session:
+        async with AsyncHttpClient(
+            base_url=settings.telegram.base_url
+        ) as http_client:
+            client = TelegramClient(http_client=http_client)
+            service = TelegramPublisherService(
+                session=session, telegram_client=client
+            )
+            published = await service.publish_next_offer()
+    logger.info(
+        "telegram_publish_job_finished", extra={"data": {"published": published}}
+    )
 
 
+@_job_retry_decorator("facebook_publish_job")
 async def _run_facebook_job() -> None:
     logger.info("facebook_publish_job_started")
-    try:
-        async with AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:
+        async with AsyncHttpClient(
+            base_url=FACEBOOK_GRAPH_API_BASE_URL
+        ) as facebook_http_client:
             async with AsyncHttpClient(
-                base_url=FACEBOOK_GRAPH_API_BASE_URL
-            ) as facebook_http_client:
-                async with AsyncHttpClient(
-                    base_url=GEMINI_API_BASE_URL
-                ) as gemini_http_client:
-                    client = FacebookClient(http_client=facebook_http_client)
-                    gemini_client = GeminiClient(http_client=gemini_http_client)
-                    image_generator = ImageGeneratorService()
-                    service = FacebookPublisherService(
-                        session=session,
-                        facebook_client=client,
-                        gemini_client=gemini_client,
-                        image_generator=image_generator,
-                    )
-                    published = await service.publish_text_batch(batch_size=4)
-        logger.info(
-            "facebook_publish_job_finished",
-            extra={"data": {"published_count": 4 if published else 0}},
-        )
-    except Exception:
-        logger.exception("facebook_publish_job_failed")
+                base_url=GEMINI_API_BASE_URL
+            ) as gemini_http_client:
+                client = FacebookClient(http_client=facebook_http_client)
+                gemini_client = GeminiClient(http_client=gemini_http_client)
+                service = FacebookPublisherService(
+                    session=session,
+                    facebook_client=client,
+                    gemini_client=gemini_client,
+                )
+                published = await service.publish_text_batch(batch_size=4)
+    logger.info(
+        "facebook_publish_job_finished",
+        extra={"data": {"published_count": 4 if published else 0}},
+    )
 
 
 def start_scheduler(

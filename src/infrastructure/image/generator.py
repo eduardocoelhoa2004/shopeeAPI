@@ -33,8 +33,8 @@ class ImageGeneratorService:
             
             # Renderiza o HTML passando as ofertas como contexto
             html_content = template.render(offers=offers_data)
-        except Exception as e:
-            logger.error(f"Falha ao renderizar o template Jinja2: {e}")
+        except Exception:
+            logger.exception("jinja2_render_failed")
             raise
 
         try:
@@ -58,9 +58,9 @@ class ImageGeneratorService:
                 logger.info(f"Imagem Top Descontos salva em: {output_path}")
                 return output_path
                 
-        except PlaywrightError as pe:
-            logger.error(f"Erro do Playwright ao gerar a imagem: {pe}. Verifique se instalou o Chromium usando 'playwright install chromium'.")
+        except PlaywrightError:
+            logger.exception("playwright_image_generation_failed")
             raise
-        except Exception as e:
-            logger.error(f"Erro inesperado ao gerar a imagem com Playwright: {e}")
+        except Exception:
+            logger.exception("playwright_image_generation_unexpected_error")
             raise

@@ -2,22 +2,16 @@ from __future__ import annotations
 
 import logging
 
-import aiofiles.os
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.external_apis.gemini import GeminiClient
-from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FacebookClient
 from src.modules.shopee.models import ShopeeOffer
 
 logger = logging.getLogger("app.facebook.service")
 
 HASHTAGS = "#AchadosDaShopee #Ofertas"
-TOP_DEALS_OUTPUT_PATH = "/tmp/output_grade.jpg"
-TOP_DEALS_TEMPLATE_PATH = "assets/templates/top_deals_template.jpg"
-TOP_DEALS_FONT_PATH = "assets/fonts/top_deals.ttf"
 
 
 class FacebookPublisherService:
@@ -26,12 +20,10 @@ class FacebookPublisherService:
         session: AsyncSession,
         facebook_client: FacebookClient,
         gemini_client: GeminiClient,
-        image_generator: ImageGeneratorService,
     ) -> None:
         self._session = session
         self._facebook_client = facebook_client
         self._gemini_client = gemini_client
-        self._image_generator = image_generator
 
     async def publish_next_offer(self) -> bool:
         offers = await self._get_next_unpublished_offers(limit=1)
@@ -119,100 +111,10 @@ class FacebookPublisherService:
                 
             return False
 
-        except Exception as e:
-            logger.error(f"Erro ao publicar lote de texto no Facebook: {str(e)}", exc_info=True)
-            await self._session.rollback()
-            return False
-
-    async def publish_offer_batch(self, batch_size: int = 4) -> bool:
-        offers = await self._get_next_unpublished_offers(limit=batch_size)
-        if len(offers) < batch_size:
-            logger.info(
-                "facebook_batch_publish_skipped",
-                extra={
-                    "data": {
-                        "reason": "insufficient_offers",
-                        "count": len(offers),
-                        "required": batch_size,
-                    }
-                },
-            )
-            return False
-
-        image_data: list[dict[str, str | None]] = []
-        gemini_data: list[dict[str, str]] = []
-        for offer in offers:
-            formatted_price = self._format_price(offer.price)
-            image_data.append(
-                {
-                    "image_url": offer.image_url,
-                    "price": formatted_price,
-                }
-            )
-            gemini_data.append(
-                {
-                    "name": " ".join(offer.name.split()),
-                    "price": formatted_price,
-                    "url": offer.short_url,
-                }
-            )
-
-        caption = await self._gemini_client.generate_batch_caption(gemini_data)
-        caption = caption.strip() if caption else ""
-        if not caption:
-            logger.warning("facebook_batch_caption_missing")
-            return False
-
-        output_path = TOP_DEALS_OUTPUT_PATH
-        try:
-            await self._image_generator.generate_top_deals_image(
-                template_path=TOP_DEALS_TEMPLATE_PATH,
-                offers_data=image_data,
-                font_path=TOP_DEALS_FONT_PATH,
-                output_path=output_path,
-            )
         except Exception:
-            logger.exception("facebook_batch_image_generation_failed")
-            await self._cleanup_output(output_path)
-            return False
-
-        try:
-            response = await self._facebook_client.post_photo(
-                message=caption,
-                image_path=output_path,
-            )
-        except Exception:
+            logger.exception("facebook_text_batch_publish_error")
             await self._session.rollback()
-            logger.exception("facebook_batch_publish_error")
-            await self._cleanup_output(output_path)
             return False
-
-        if not response.get("id"):
-            await self._session.rollback()
-            logger.warning(
-                "facebook_batch_publish_failed",
-                extra={"data": {"response": response}},
-            )
-            await self._cleanup_output(output_path)
-            return False
-
-        for offer in offers:
-            offer.is_published_facebook = True
-
-        try:
-            await self._session.commit()
-        except Exception:
-            await self._session.rollback()
-            logger.exception("facebook_batch_publish_commit_failed")
-            await self._cleanup_output(output_path)
-            return False
-
-        await self._cleanup_output(output_path)
-        logger.info(
-            "facebook_batch_published",
-            extra={"data": {"count": len(offers), "post_id": response.get("id")}},
-        )
-        return True
 
     async def _get_next_unpublished_offers(self, limit: int = 4) -> list[ShopeeOffer]:
         stmt = (
@@ -245,16 +147,4 @@ class FacebookPublisherService:
             f"{price:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
         )
         return f"R$ {formatted}"
-
-    async def _cleanup_output(self, output_path: str) -> None:
-        try:
-            await aiofiles.os.remove(output_path)
-        except FileNotFoundError:
-            return
-        except Exception:
-            logger.warning(
-                "facebook_batch_cleanup_failed",
-                extra={"data": {"output_path": output_path}},
-                exc_info=True,
-            )
 

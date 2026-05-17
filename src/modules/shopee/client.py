@@ -110,7 +110,6 @@ class ShopeeAffiliateClient:
         errors = payload_json.get("errors") if isinstance(payload_json, dict) else None
 
         if errors:
-            logger.error(f"DEBUG_GRAPHQL_ERRORS: {errors}")
             logger.warning(
                 "shopee_offer_list_failed",
                 extra={"data": {"status_code": response.status_code, "path": path}},

@@ -101,11 +101,8 @@ class ShopeeOfferService:
             await self._session.commit()
             logger.info("shopee_offer_inserted", extra={"data": {"offer_id": offer_id}})
             return "inserted"
-        except IntegrityError as exc:
+        except IntegrityError:
             await self._session.rollback()
-            logger.error(
-                f"\n--- ERRO REAL DO POSTGRESQL ---\n{exc}\n-------------------------------\n"
-            )
             logger.info(
                 "shopee_offer_skipped",
                 extra={"data": {"reason": "duplicate", "offer_id": offer_id}},

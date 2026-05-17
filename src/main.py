@@ -67,7 +67,7 @@ async def _shutdown_resources() -> None:
     try:
         await dispose_engine()
     except Exception:
-        logger.error("database_dispose_failed")
+        logger.exception("database_dispose_failed")
 
 
 def create_app() -> FastAPI:
@@ -89,13 +89,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health() -> JSONResponse:
-        db_ok = await _check_database()
-        if db_ok:
-            return JSONResponse(status_code=status.HTTP_200_OK, content=_success_payload({"status": "ok"}))
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content=_error_payload("Database unavailable"),
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=_success_payload({"status": "healthy"}))
 
     @app.get("/readiness")
     async def readiness() -> JSONResponse:
@@ -104,7 +98,7 @@ def create_app() -> FastAPI:
             return JSONResponse(status_code=status.HTTP_200_OK, content=_success_payload({"status": "ready"}))
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content=_error_payload("Not ready"),
+            content=_error_payload("Database unavailable"),
         )
 
     @app.get("/liveness")

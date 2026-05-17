@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from typing import Any, Generic, TypeVar
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config.settings import settings
 from src.core.errors.exceptions import AppException
-from src.infrastructure.database.session import AsyncSessionLocal
+from src.infrastructure.database.session import get_db_session
 from src.infrastructure.external_apis.http_client import AsyncHttpClient
 from src.modules.shopee.client import ShopeeAffiliateClient
 from src.modules.shopee.service import ShopeeOfferService
@@ -44,6 +46,14 @@ class ShortLinkResponse(BaseModel):
 
 
 router = APIRouter(prefix="/api/v1/shopee", tags=["Shopee"])
+
+
+async def get_shopee_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> AsyncGenerator[ShopeeOfferService, None]:
+    async with AsyncHttpClient(base_url=settings.shopee.base_url) as http_client:
+        client = ShopeeAffiliateClient(http_client=http_client)
+        yield ShopeeOfferService(session=session, client=client)
 
 
 @router.post("/short-link", response_model=StandardResponse[ShortLinkResponse])
@@ -86,13 +96,12 @@ async def create_short_link(payload: ShortLinkRequest) -> StandardResponse[Short
 
 
 @router.post("/test-fetch", response_model=StandardResponse[dict[str, int]])
-async def test_fetch(limit: int = 20) -> StandardResponse[dict[str, int]]:
+async def test_fetch(
+    limit: int = 20,
+    service: ShopeeOfferService = Depends(get_shopee_service),
+) -> StandardResponse[dict[str, int]]:
     try:
-        async with AsyncSessionLocal() as session:
-            async with AsyncHttpClient(base_url=settings.shopee.base_url) as http_client:
-                client = ShopeeAffiliateClient(http_client=http_client)
-                service = ShopeeOfferService(session=session, client=client)
-                summary = await service.fetch_and_process_offers(limit=limit)
+        summary = await service.fetch_and_process_offers(limit=limit)
     except Exception as exc:
         raise AppException(
             "shopee_test_fetch_failed",

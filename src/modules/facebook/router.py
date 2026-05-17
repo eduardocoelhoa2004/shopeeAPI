@@ -6,11 +6,9 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# ... existing imports ...
 from src.infrastructure.database.session import get_db_session
 from src.infrastructure.external_apis.gemini import GEMINI_API_BASE_URL, GeminiClient
 from src.infrastructure.external_apis.http_client import AsyncHttpClient
-from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FACEBOOK_GRAPH_API_BASE_URL, FacebookClient
 from src.modules.facebook.service import FacebookPublisherService
 
@@ -30,12 +28,10 @@ async def get_facebook_service(
         ) as gemini_http_client:
             client = FacebookClient(http_client=facebook_http_client)
             gemini_client = GeminiClient(http_client=gemini_http_client)
-            image_generator = ImageGeneratorService()
             yield FacebookPublisherService(
                 session=session,
                 facebook_client=client,
                 gemini_client=gemini_client,
-                image_generator=image_generator,
             )
 
 
@@ -55,6 +51,6 @@ async def force_publish_batch(
             "status": "warning",
             "message": "Nenhum produto publicado. Verifique os logs ou se há ofertas suficientes no banco.",
         }
-    except Exception as e:
-        logger.error(f"Erro inesperado no endpoint force-publish-batch: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("facebook_force_publish_error")
         raise HTTPException(status_code=500, detail="Erro interno ao tentar publicar no Facebook.")

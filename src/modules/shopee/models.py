@@ -18,6 +18,7 @@ class ShopeeOffer(Base):
     commission_rate: Mapped[float] = mapped_column(Float, nullable=False)
     original_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     short_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # Telegram
     is_published_facebook: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # Facebook

@@ -66,6 +66,86 @@ class GeminiClient:
         data = self._safe_json(response)
         return self._extract_text(data)
 
+    async def generate_batch_caption(
+        self,
+        offers_data: list[dict[str, str]],
+    ) -> str | None:
+        if not offers_data:
+            return None
+
+        fire = "\U0001F525"
+        money = "\U0001F4B8"
+        link = "\U0001F517"
+        package = "\U0001F4E6"
+        bell = "\U0001F514"
+        keycap_one = "1\ufe0f\u20e3"
+
+        offers_lines: list[str] = []
+        for idx, offer in enumerate(offers_data, start=1):
+            name = offer.get("name", "").strip()
+            price = offer.get("price", "").strip()
+            url = offer.get("url", "").strip()
+            if not name or not price or not url:
+                continue
+            offers_lines.append(
+                f"{idx}. Nome: {name} | Preco: {price} | Link: {url}"
+            )
+
+        if not offers_lines:
+            return None
+
+        offers_block = "\n".join(offers_lines)
+        prompt = (
+            "Voce e a estrategista da Central das Ofertas. "
+            "Compile a lista de produtos recebida em um unico texto. "
+            "Siga estritamente o template abaixo. "
+            "Retorne apenas o texto final preenchido, sem aspas, "
+            "markdowns de codigo ou comentarios extras.\n\n"
+            "TEMPLATE:\n"
+            f"{fire} TOP OFERTAS DO DIA {fire}\n"
+            "Descontos reais selecionados para voc\u00ea. "
+            "Aproveite antes que vire o pre\u00e7o!\n\n"
+            f"{keycap_one} [Nome Curto do Produto 1]\n"
+            f"{money} Por: [Pre\u00e7o 1]\n"
+            f"{link} [Link 1]\n"
+            "(Repetir para os restantes)\n\n"
+            f"{package} Frete e descontos ativos nos links!\n"
+            f"{bell} Central das Ofertas\n\n"
+            "DADOS DOS PRODUTOS:\n"
+            f"{offers_block}\n"
+        )
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt,
+                        }
+                    ]
+                }
+            ]
+        }
+        endpoint = (
+            f"/v1beta/models/{GEMINI_MODEL_ID}:generateContent"
+            f"?key={self._settings.api_key.get_secret_value()}"
+        )
+
+        try:
+            response = await self._client.post(endpoint, json=payload)
+        except Exception:
+            logger.warning("gemini_generate_batch_caption_failed", exc_info=True)
+            return None
+
+        if not response.is_success:
+            logger.warning(
+                "gemini_generate_batch_caption_rejected",
+                extra={"data": {"status_code": response.status_code}},
+            )
+            return None
+
+        data = self._safe_json(response)
+        return self._extract_text(data)
+
     def _safe_json(self, response: Any) -> dict[str, Any]:
         try:
             data = response.json()

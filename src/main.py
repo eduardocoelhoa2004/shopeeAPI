@@ -19,6 +19,7 @@ from src.core.errors.handlers import (
 from src.core.logging.logger import configure_logging
 from src.core.scheduler.manager import start_scheduler, stop_scheduler
 from src.infrastructure.database.session import dispose_engine, engine
+from src.modules.facebook.router import router as facebook_router
 from src.modules.shopee.api import router as shopee_router
 
 logger = logging.getLogger("app")
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(ValueError, value_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
     app.include_router(shopee_router)
+    app.include_router(facebook_router)
 
     @app.get("/health")
     async def health() -> JSONResponse:

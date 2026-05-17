@@ -91,6 +91,7 @@ class ShopeeOfferService:
             commission_rate=mapped["commission_rate"],
             original_url=mapped["original_url"],
             short_url=short_url,
+            image_url=mapped.get("image_url"),
             is_published=False,
             is_published_facebook=False,
         )
@@ -176,6 +177,13 @@ class ShopeeOfferService:
             or offer.get("commission")
             or offer.get("commission_value")
         )
+        image_url = self._coerce_str(
+            offer.get("imageUrl")
+            or offer.get("image")
+            or offer.get("image_url")
+            or offer.get("imageUri")
+            or offer.get("imageLink")
+        )
 
         if not name or not original_url:
             return None
@@ -187,6 +195,7 @@ class ShopeeOfferService:
             "original_url": original_url,
             "price": price,
             "commission_rate": commission_rate,
+            "image_url": image_url,
         }
 
     def _extract_short_link(self, response: dict[str, Any]) -> str | None:

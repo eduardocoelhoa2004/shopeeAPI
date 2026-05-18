@@ -189,7 +189,9 @@ class ShopeeOfferService:
         discount_rate = self._normalize_discount(
             offer.get("priceDiscountRate") or offer.get("discountRate") or offer.get("discount") or 0
         )
-        period_end_time = offer.get("periodEndTime") or offer.get("endTime") or offer.get("end_time") or 0
+        period_end_time = self._parse_timestamp(
+            offer.get("periodEndTime") or offer.get("endTime") or offer.get("end_time")
+        )
 
         commission_rate = self._to_float(
             offer.get("commissionRate") or offer.get("commission_rate") or offer.get("commission")

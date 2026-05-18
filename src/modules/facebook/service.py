@@ -190,14 +190,21 @@ class FacebookPublisherService:
     def _route_template(
         self, first: ShopeeOffer, offers: list[ShopeeOffer]
     ) -> tuple[str, list[ShopeeOffer]]:
-        is_flash = self._is_flash_offer(first)
-        if is_flash:
+
+        # 1. Filtra apenas ofertas que têm desconto real e válido no banco de dados
+        offers_with_discount = [o for o in offers if o.discount is not None and o.discount > 0]
+
+        # 2. Regra da Oferta Relâmpago: O produto DEVE ter desconto > 0 E ser classificado como flash
+        first_has_discount = first.discount is not None and first.discount > 0
+        if first_has_discount and self._is_flash_offer(first):
             return "relampago", [first]
 
-        if len(offers) >= 4:
-            return "top_deals", offers[:4]
+        # 3. Regra do Top Descontos: DEVEMOS ter 4 produtos no lote que passaram no filtro de desconto
+        if len(offers_with_discount) >= 4:
+            return "top_deals", offers_with_discount[:4]
 
-        return "achadinho", [offers[0]]
+        # 4. Fallback Achadinho: Qualquer produto que sobrar (mesmo com desconto 0) cai aqui
+        return "achadinho", [first]
 
     def _is_flash_offer(self, offer: ShopeeOffer) -> bool:
         if offer.period_end_time is not None:

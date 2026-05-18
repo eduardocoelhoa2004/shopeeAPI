@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from sqlalchemy import select
@@ -88,6 +89,9 @@ class ShopeeOfferService:
             offer_id=offer_id,
             name=mapped["name"],
             price=mapped["price"],
+            old_price=mapped["old_price"],
+            discount=mapped["discount"],
+            period_end_time=mapped["period_end_time"],
             commission_rate=mapped["commission_rate"],
             original_url=mapped["original_url"],
             short_url=short_url,
@@ -140,57 +144,83 @@ class ShopeeOfferService:
             return [item for item in offers if isinstance(item, dict)]
         return []
 
+    def _normalize_price(self, value: Any) -> float:
+        """Normaliza o preco de forma inteligente, evitando dividir valores ja formatados."""
+        try:
+            if not value:
+                return 0.0
+            val = float(value)
+            if val > 10000:
+                return val / 100000.0
+            return val
+        except (ValueError, TypeError):
+            return 0.0
+
+    def _normalize_discount(self, value: Any) -> int:
+        try:
+            if not value:
+                return 0
+            if isinstance(value, str) and "%" in value:
+                return int(float(value.replace("%", "").strip()))
+            discount = float(value)
+            if 0 < discount <= 1:
+                return int(discount * 100)
+            return min(int(discount), 99)
+        except (ValueError, TypeError):
+            return 0
+
     def _map_offer_fields(self, offer: dict[str, Any]) -> dict[str, Any] | None:
+        # Incluído productName
         name = self._coerce_str(
-            offer.get("itemName")
-            or offer.get("offerName")
-            or offer.get("name")
-            or offer.get("offer_name")
-            or offer.get("item_name")
-            or offer.get("itemName")
-            or offer.get("product_name")
-            or offer.get("productName")
+            offer.get("productName") or offer.get("itemName") or offer.get("offerName") or offer.get("name")
         )
         original_url = self._coerce_str(
-            offer.get("productLink")
-            or offer.get("itemUri")
-            or offer.get("itemUrl")
-            or offer.get("original_url")
-            or offer.get("url")
-            or offer.get("offer_url")
-            or offer.get("item_url")
-            or offer.get("product_url")
-        )
-        price = self._to_float(
-            offer.get("priceMin")
-            or offer.get("price")
-            or offer.get("offer_price")
-            or offer.get("original_price")
-            or offer.get("item_price")
-        )
-        commission_rate = self._to_float(
-            offer.get("commissionRate")
-            or offer.get("commission_rate")
-            or offer.get("commission")
-            or offer.get("commission_value")
-        )
-        image_url = self._coerce_str(
-            offer.get("imageUrl")
-            or offer.get("image")
-            or offer.get("image_url")
-            or offer.get("imageUri")
-            or offer.get("imageLink")
+            offer.get("productLink") or offer.get("itemUri") or offer.get("itemUrl")
         )
 
+        price_min = self._normalize_price(
+            offer.get("priceMin") or offer.get("minPrice") or offer.get("price") or 0
+        )
+        price_max = self._normalize_price(
+            offer.get("priceMax") or offer.get("maxPrice") or offer.get("originalPrice") or 0
+        )
+
+        # Incluído priceDiscountRate
+        discount_rate = self._normalize_discount(
+            offer.get("priceDiscountRate") or offer.get("discountRate") or offer.get("discount") or 0
+        )
+        period_end_time = offer.get("periodEndTime") or offer.get("endTime") or offer.get("end_time") or 0
+
+        commission_rate = self._to_float(
+            offer.get("commissionRate") or offer.get("commission_rate") or offer.get("commission")
+        )
+        image_url = self._coerce_str(
+            offer.get("imageUrl") or offer.get("image") or offer.get("image_url")
+        )
+
+        # Atualizado o log para buscar o itemId corretamente em vez de dar N/A
         if not name or not original_url:
+            logger.warning(f"Produto pulado (Sem nome ou URL). ID: {offer.get('itemId') or offer.get('offerId')}")
             return None
-        if price is None or commission_rate is None:
+
+        if price_min == 0.0 or commission_rate is None:
+            logger.warning(f"Produto pulado (Preço Zero ou Sem Comissão). Preço: {price_min} | Comissão: {commission_rate} | ID: {offer.get('itemId') or offer.get('offerId')}")
             return None
+
+        if price_max <= price_min and discount_rate > 0:
+            price_max = price_min / (1 - (discount_rate / 100.0))
+
+        if price_max <= price_min:
+            price_max = 0.0
+            discount_rate = 0
 
         return {
             "name": name,
             "original_url": original_url,
-            "price": price,
+            "price": price_min,
+            "old_price": price_max,
+            "discount": discount_rate,
+            "period_end_time": period_end_time,
             "commission_rate": commission_rate,
             "image_url": image_url,
         }
@@ -218,3 +248,14 @@ class ShopeeOfferService:
             return None
         text = str(value).strip()
         return text or None
+
+    def _parse_timestamp(self, value: Any) -> datetime | None:
+        if value is None:
+            return None
+        try:
+            ts = int(value)
+            if ts <= 0:
+                return None
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        except (TypeError, ValueError):
+            return None

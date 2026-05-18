@@ -94,6 +94,7 @@ class TelegramSettings(BaseSettings):
     bot_token: NonEmptySecret
     chat_id: NonEmptyStr
     base_url: NonEmptyStr = "https://api.telegram.org"
+    group_link: str = "https://t.me/SEU_GRUPO_AQUI"
 
 
 class FacebookSettings(BaseSettings):

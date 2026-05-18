@@ -21,14 +21,23 @@
             pointer-events: none;
         }
 
-        /* Camada 1: Container do Produto Único (Com Fundo Branco) */
+        /* Camada 0: Fundo Branco Geral (Cobre todo o recorte) */
+        .white-backdrop {
+            position: absolute;
+            left: 434px; top: 96px;
+            width: 1059px; height: 1171px;
+            background-color: #FFFFFF;
+            z-index: 0;
+        }
+
+        /* Camada 1: Container do Produto Único (Safe Zone para centralizar) */
         .product-box {
             position: absolute;
-            left: 43px; top: 496px;
-            width: 1016px; height: 675px;
+            left: 480px; top: 292px;
+            width: 562px; height: 754px;
             z-index: 1;
             display: flex; align-items: center; justify-content: center;
-            background-color: #FFFFFF;
+            background-color: transparent;
             overflow: hidden;
         }
         .product-image {
@@ -73,9 +82,28 @@
             text-shadow: 0 0 15px rgba(255, 255, 255, 0.2), 3px 3px 6px rgba(0,0,0,0.7);
             white-space: nowrap;
         }
+
+        /* ========================================= */
+        /* MODO DEBUG: BORDAS PARA TESTE DE ENCAIXE  */
+        /* Remover após a validação visual           */
+        /* ========================================= */
+        /*.product-box {
+            outline: 3px solid #00FF00 !important;
+            background-color: rgba(0, 255, 0, 0.2) !important;
+        }
+        .box-old-price {
+            outline: 3px solid #FF00FF !important;
+            background-color: rgba(255, 0, 255, 0.3) !important;
+        }
+        .box-new-price {
+            outline: 3px solid #00FFFF !important;
+            background-color: rgba(0, 255, 255, 0.3) !important;
+        }*/
     </style>
 </head>
 <body>
+
+    <div class="white-backdrop"></div>
 
     {% if offers and offers|length > 0 %}
     <div class="product-box">
@@ -100,3 +128,4 @@
 
 </body>
 </html>
+

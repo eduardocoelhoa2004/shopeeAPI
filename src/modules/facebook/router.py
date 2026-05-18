@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,12 @@ from src.modules.facebook.service import FacebookPublisherService
 logger = logging.getLogger("app.facebook.router")
 
 router = APIRouter(prefix="/api/facebook", tags=["Facebook"])
+
+
+class TemplateTypeEnum(str, Enum):
+    top_deals = "top_deals"
+    relampago = "relampago"
+    achadinho = "achadinho"
 
 
 async def get_facebook_service(
@@ -60,11 +67,23 @@ async def force_publish_batch(
         raise HTTPException(status_code=500, detail="Erro interno ao tentar publicar no Facebook.")
 
 
-@router.get("/preview-image-batch")
-async def preview_image_batch(
+@router.get("/preview-template")
+async def preview_template(
+    template_type: TemplateTypeEnum = Query(
+        TemplateTypeEnum.top_deals,
+        description="Selecione o template no menu dropdown",
+    ),
     service: FacebookPublisherService = Depends(get_facebook_service),
 ) -> FileResponse:
-    image_path = await service.preview_offer_batch_image(batch_size=4)
-    if not image_path:
-        raise HTTPException(status_code=404, detail="Ofertas insuficientes para gerar preview.")
-    return FileResponse(image_path, media_type="image/jpeg", filename="preview_top_deals.jpg")
+    try:
+        image_path = await service.preview_offer_batch_image(template_type=template_type.value)
+        if not image_path:
+            raise HTTPException(status_code=404, detail="Ofertas insuficientes para gerar preview.")
+        return FileResponse(image_path, media_type="image/jpeg")
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Erro no preview do template %s", template_type.value)
+        raise HTTPException(status_code=500, detail="Erro interno ao gerar o preview.")

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config.settings import settings
 from src.infrastructure.external_apis.gemini import GeminiClient
 from src.infrastructure.image.generator import ImageGeneratorService
 from src.modules.facebook.client import FacebookClient
@@ -13,6 +15,8 @@ from src.modules.shopee.models import ShopeeOffer
 logger = logging.getLogger("app.facebook.service")
 
 HASHTAGS = "#AchadosDaShopee #Ofertas"
+CAPTION_MAX_NAME_LEN = 60
+FLASH_DISCOUNT_THRESHOLD = 50
 
 
 class FacebookPublisherService:
@@ -119,7 +123,122 @@ class FacebookPublisherService:
             await self._session.rollback()
             return False
 
-    async def preview_offer_batch_image(self, batch_size: int = 4) -> str | None:
+    async def publish_smart_batch(self) -> bool:
+        offers = await self._get_next_unpublished_offers(limit=4)
+        if not offers:
+            logger.info("facebook_smart_publish_skipped", extra={"data": {"reason": "no_unpublished_offers"}})
+            return False
+
+        first = offers[0]
+        template_type, selected_offers = self._route_template(first, offers)
+
+        logger.info(
+            "smart_routing_decision",
+            extra={"data": {"template": template_type, "count": len(selected_offers)}},
+        )
+
+        caption = self._build_rich_caption(selected_offers)
+
+        image_data: list[dict[str, str | None]] = []
+        for offer in selected_offers:
+            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
+            discount = offer.discount if offer.discount > 0 else self._calculate_discount(offer.price)
+            image_data.append({
+                "image_url": offer.image_url,
+                "price": self._format_price(offer.price),
+                "old_price": self._format_price(old_price),
+                "discount": discount,
+            })
+
+        output_path = f"smart_{template_type}.jpg"
+        try:
+            await self._image_generator.generate_image(
+                offers_data=image_data,
+                output_path=output_path,
+                template_type=template_type,
+            )
+        except Exception:
+            logger.exception("smart_image_generation_failed")
+            return False
+
+        try:
+            result = await self._facebook_client.post_photo(message=caption, image_path=output_path)
+        except Exception:
+            await self._session.rollback()
+            logger.exception("smart_publish_error")
+            return False
+
+        if not result:
+            await self._session.rollback()
+            logger.warning("smart_publish_failed")
+            return False
+
+        for offer in selected_offers:
+            offer.is_published_facebook = True
+
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            logger.exception("smart_publish_commit_failed")
+            return False
+
+        ids = [str(o.offer_id) for o in selected_offers]
+        logger.info("smart_publish_success", extra={"data": {"offer_ids": ids, "template": template_type}})
+        return True
+
+    def _route_template(
+        self, first: ShopeeOffer, offers: list[ShopeeOffer]
+    ) -> tuple[str, list[ShopeeOffer]]:
+        is_flash = self._is_flash_offer(first)
+        if is_flash:
+            return "relampago", [first]
+
+        if len(offers) >= 4:
+            return "top_deals", offers[:4]
+
+        return "achadinho", [offers[0]]
+
+    def _is_flash_offer(self, offer: ShopeeOffer) -> bool:
+        if offer.period_end_time is not None:
+            if offer.period_end_time > datetime.now(timezone.utc):
+                return True
+
+        if offer.discount is not None and offer.discount >= FLASH_DISCOUNT_THRESHOLD:
+            return True
+
+        return False
+
+    def _build_rich_caption(self, offers: list[ShopeeOffer]) -> str:
+        lines: list[str] = []
+        for i, offer in enumerate(offers, start=1):
+            truncated_name = offer.name[:CAPTION_MAX_NAME_LEN]
+            if len(offer.name) > CAPTION_MAX_NAME_LEN:
+                truncated_name += "..."
+
+            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
+            old_price_str = self._format_price(old_price)
+            new_price_str = self._format_price(offer.price)
+
+            if len(offers) > 1:
+                lines.append(f"{i}. 🛍️ {truncated_name}")
+            else:
+                lines.append(f"🛍️ {truncated_name}")
+
+            lines.append(f"❌ De: {old_price_str}")
+            lines.append(f"✅ Por: {new_price_str}")
+            lines.append(f"🔗 Compre aqui: {offer.short_url}")
+            lines.append("")
+
+        telegram_link = settings.telegram.group_link
+        lines.append("🚨 Não perca mais nenhuma promoção ou cupom!")
+        lines.append(f"👉 Entre agora no nosso grupo VIP do Telegram: {telegram_link}")
+        lines.append("")
+        lines.append(HASHTAGS)
+
+        return "\n".join(lines)
+
+    async def preview_offer_batch_image(self, batch_size: int = 4, template_type: str = "top_deals") -> str | None:
         offers = await self._get_next_unpublished_offers(limit=batch_size)
         if not offers or len(offers) == 0:
             logger.info("facebook_preview_skipped", extra={"data": {"reason": "no_offers"}})
@@ -127,19 +246,20 @@ class FacebookPublisherService:
 
         image_data: list[dict[str, str | None]] = []
         for offer in offers:
-            original_price = self._estimate_original_price(offer.price)
+            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
+            discount = offer.discount if offer.discount > 0 else self._calculate_discount(offer.price)
             image_data.append({
                 "image_url": offer.image_url,
                 "price": self._format_price(offer.price),
-                "old_price": self._format_price(original_price),
-                "discount": self._calculate_discount(offer.price),
+                "old_price": self._format_price(old_price),
+                "discount": discount,
             })
 
-        output_path = "preview_top_deals.jpg"
+        output_path = f"preview_{template_type}.jpg"
         await self._image_generator.generate_image(
             offers_data=image_data,
             output_path=output_path,
-            template_type="top_deals",
+            template_type=template_type,
         )
         return output_path
 

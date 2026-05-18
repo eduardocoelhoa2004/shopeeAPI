@@ -15,14 +15,18 @@ class ShopeeOffer(Base):
     offer_id: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
+    old_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    discount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     commission_rate: Mapped[float] = mapped_column(Float, nullable=False)
     original_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     short_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     image_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    
+
+    period_end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # Telegram
     is_published_facebook: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # Facebook
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

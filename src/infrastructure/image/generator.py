@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -9,18 +10,24 @@ from playwright.async_api import async_playwright, Error as PlaywrightError
 
 logger = logging.getLogger(__name__)
 
+# generator.py -> infrastructure -> image -> src -> raiz do projeto
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+
+_TEMPLATE_HTML_DIR = os.path.join(BASE_DIR, "src", "assets", "templates", "html")
+_TEMPLATE_IMG_DIR = os.path.join(BASE_DIR, "src", "assets", "templates", "images")
+
 TEMPLATE_REGISTRY: dict[str, dict[str, str]] = {
     "top_deals": {
         "html": "top_deals.html",
-        "mask": os.path.join("src", "assets", "templates", "images", "TD_template_vazado.png"),
+        "mask": os.path.join(_TEMPLATE_IMG_DIR, "TD_template_vazado.png"),
     },
     "relampago": {
         "html": "oferta_relampago.html",
-        "mask": os.path.join("src", "assets", "templates", "images", "oferta_relampago.png"),
+        "mask": os.path.join(_TEMPLATE_IMG_DIR, "OR_template_vazado.png"),
     },
     "achadinho": {
         "html": "achadinho_do_dia.html",
-        "mask": os.path.join("src", "assets", "templates", "images", "achadinho_do_dia.png"),
+        "mask": os.path.join(_TEMPLATE_IMG_DIR, "AD_template_vazado.png"),
     },
 }
 
@@ -41,10 +48,10 @@ class ImageGeneratorService:
     utilizando renderizacao de templates HTML/CSS com Playwright e Jinja2.
     """
 
-    def __init__(self, templates_dir: str = "src/assets/templates/html"):
-        os.makedirs(templates_dir, exist_ok=True)
+    def __init__(self) -> None:
+        os.makedirs(_TEMPLATE_HTML_DIR, exist_ok=True)
         self.jinja_env = Environment(
-            loader=FileSystemLoader(templates_dir),
+            loader=FileSystemLoader(_TEMPLATE_HTML_DIR),
             autoescape=select_autoescape(["html", "xml"]),
         )
 
@@ -123,9 +130,8 @@ class ImageGeneratorService:
             if not offer.get("image_url"):
                 offer["image_url"] = _PLACEHOLDER_IMAGE
 
-    def _load_mask_as_base64(self, mask_relative_path: str) -> str:
+    def _load_mask_as_base64(self, mask_path: str) -> str:
         """Carrega a mascara local e converte para Data URI Base64."""
-        template_path = os.path.join(os.getcwd(), mask_relative_path)
-        with open(template_path, "rb") as image_file:
+        with open(mask_path, "rb") as image_file:
             template_b64 = base64.b64encode(image_file.read()).decode("utf-8")
         return f"data:image/png;base64,{template_b64}"

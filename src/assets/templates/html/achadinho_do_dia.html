@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            width: 1080px; height: 1350px;
+            background-color: #111111;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        /* Máscara PNG do Achadinho do Dia */
+        .template-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 1080px; height: 1350px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Camada 1: Imagem do Produto (Metade Direita com Fundo Branco) */
+        .product-box {
+            position: absolute;
+            left: 584px; top: 406px;
+            width: 452px; height: 718px;
+            z-index: 1;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #FFFFFF;
+            overflow: hidden;
+        }
+        .product-image {
+            max-width: 95%; max-height: 95%;
+            object-fit: contain;
+        }
+
+        /* Camada 3: Espaço reservado para Preços/Descontos (z-index: 3) */
+        /* Adicionaremos as classes absolutas aqui assim que mapeadas */
+    </style>
+</head>
+<body>
+
+    {% if offers and offers|length > 0 %}
+    <div class="product-box">
+        <img src="{{ offers[0].image_url }}" class="product-image" loading="eager" referrerpolicy="no-referrer">
+    </div>
+    {% endif %}
+
+    <img src="{{ mask_data_uri }}" class="template-overlay">
+
+</body>
+</html>

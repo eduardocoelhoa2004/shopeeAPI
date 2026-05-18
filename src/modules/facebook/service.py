@@ -127,15 +127,19 @@ class FacebookPublisherService:
 
         image_data: list[dict[str, str | None]] = []
         for offer in offers:
+            original_price = self._estimate_original_price(offer.price)
             image_data.append({
                 "image_url": offer.image_url,
                 "price": self._format_price(offer.price),
+                "old_price": self._format_price(original_price),
+                "discount": self._calculate_discount(offer.price),
             })
 
         output_path = "preview_top_deals.jpg"
-        await self._image_generator.generate_top_deals_image(
+        await self._image_generator.generate_image(
             offers_data=image_data,
             output_path=output_path,
+            template_type="top_deals",
         )
         return output_path
 
@@ -170,4 +174,14 @@ class FacebookPublisherService:
             f"{price:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
         )
         return f"R$ {formatted}"
+
+    def _estimate_original_price(self, current_price: float, markup: float = 0.30) -> float:
+        """Simula o preço original assumindo que era markup% mais caro."""
+        return current_price * (1 + markup)
+
+    def _calculate_discount(self, current_price: float, markup: float = 0.30) -> int:
+        """Simula o desconto assumindo que o preço original era markup% mais caro."""
+        original_price = self._estimate_original_price(current_price, markup)
+        discount = int(((original_price - current_price) / original_price) * 100)
+        return discount
 

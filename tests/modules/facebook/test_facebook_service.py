@@ -14,7 +14,12 @@ from src.modules.shopee.models import ShopeeOffer
 
 
 class FakeImageGenerator:
-    async def generate_top_deals_image(self, offers_data: list[dict[str, Any]], output_path: str) -> str:
+    async def generate_image(
+        self,
+        offers_data: list[dict[str, Any]],
+        output_path: str,
+        template_type: str = "top_deals",
+    ) -> str:
         return output_path
 
 

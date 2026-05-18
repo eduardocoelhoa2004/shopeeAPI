@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            width: 1080px; height: 1350px;
+            background-color: #111111;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        /* Máscara PNG de sobreposição da Oferta Relâmpago */
+        .template-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 1080px; height: 1350px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Camada 1: Container do Produto Único (Com Fundo Branco) */
+        .product-box {
+            position: absolute;
+            left: 43px; top: 496px;
+            width: 1016px; height: 675px;
+            z-index: 1;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #FFFFFF;
+            overflow: hidden;
+        }
+        .product-image {
+            max-width: 95%; max-height: 95%;
+            object-fit: contain;
+        }
+
+        /* Camada 3: Textos Flutuantes (Transparentes, Sem Fundo) */
+        .price-container {
+            position: absolute;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        /* Caixa do Preço DE (Riscado) */
+        .box-old-price {
+            left: 57px; top: 698px;
+            width: 337px; height: 72px;
+        }
+        .text-old-price {
+            font-size: 32px;
+            font-weight: 700;
+            color: #E53935;
+            text-decoration: line-through;
+            white-space: nowrap;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+        }
+
+        /* Caixa do Preço PARA (Destaque Gigante) */
+        .box-new-price {
+            left: 66px; top: 915px;
+            width: 512px; height: 151px;
+        }
+        .text-new-price {
+            font-size: 76px;
+            font-weight: 900;
+            color: #FFFFFF;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.2), 3px 3px 6px rgba(0,0,0,0.7);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    {% if offers and offers|length > 0 %}
+    <div class="product-box">
+        <img src="{{ offers[0].image_url }}" class="product-image" loading="eager" referrerpolicy="no-referrer">
+    </div>
+    {% endif %}
+
+    <img src="{{ mask_data_uri }}" class="template-overlay">
+
+    {% if offers and offers|length > 0 %}
+
+        {% if offers[0].old_price %}
+        <div class="price-container box-old-price">
+            <div class="text-old-price">{{ offers[0].old_price }}</div>
+        </div>
+        {% endif %}
+
+        <div class="price-container box-new-price">
+            <div class="text-new-price">{{ offers[0].price }}</div>
+        </div>
+    {% endif %}
+
+</body>
+</html>

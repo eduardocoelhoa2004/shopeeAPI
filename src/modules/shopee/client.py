@@ -97,7 +97,7 @@ class ShopeeAffiliateClient:
             f"{page}"
             ", limit: "
             f"{limit}"
-            ", sortType: 5) { nodes { itemId, productName, priceMin, commissionRate, productLink, imageUrl } } }"
+            ", sortType: 5) { nodes { itemId, productName, priceMin, priceMax, priceDiscountRate, sales, ratingStar, periodEndTime, commissionRate, productLink, imageUrl } } }"
         )
         payload: dict[str, Any] = {"query": query}
         payload_string = json.dumps(payload, separators=(",", ":"))

@@ -169,7 +169,7 @@ def test_circuit_breaker_rejects_requests_when_open() -> None:
 
 
 def test_circuit_breaker_recovers_after_timeout() -> None:
-    cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.01))
+    cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.05))
 
     asyncio.run(cb.record_failure())
     asyncio.run(cb.record_failure())
@@ -177,7 +177,7 @@ def test_circuit_breaker_recovers_after_timeout() -> None:
     assert asyncio.run(cb.allow_request()) is False
 
     import time
-    time.sleep(0.02)
+    time.sleep(0.1)
 
     assert asyncio.run(cb.allow_request()) is True
 

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
     <style>
         body, html {
             margin: 0; padding: 0;
@@ -12,86 +12,117 @@
             font-family: 'Montserrat', sans-serif;
         }
 
-        /* Camada 1: A Grade com as fotos da Shopee */
-        .products-grid {
-            position: absolute;
-            /* AJUSTE ESSAS COORDENADAS PARA ALINHAR COM OS BURACOS DO SEU PNG */
-            top: 350px; left: 50px;
-            width: 980px; height: 800px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 40px;
-            z-index: 1;
-        }
-        .product-box {
-            background-color: #FFFFFF;
-            border-radius: 20px;
-            padding: 20px;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
-        }
-        .product-image {
-            max-width: 100%; max-height: 100%;
-            object-fit: contain;
-        }
-
-        /* Camada 2: A sua arte (PNG com buracos transparentes) */
+        /* Máscara PNG de sobreposição */
         .template-overlay {
             position: absolute;
             top: 0; left: 0;
             width: 1080px; height: 1350px;
             z-index: 2;
-            pointer-events: none; /* Deixa o Playwright interagir com o que está atrás se precisar */
+            pointer-events: none;
         }
 
-        /* Camada 3: Os preços formatados */
-        .prices-grid {
+        /* Camada 1: Imagens dos Produtos (Sem fundos coloridos) */
+        .product-box {
             position: absolute;
-            /* DEVE TER O MESMO TAMANHO E POSIÇÃO DA GRADE DE PRODUTOS */
-            top: 350px; left: 50px;
-            width: 980px; height: 800px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 40px;
-            z-index: 3;
+            z-index: 1;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #FFFFFF;
+            overflow: hidden;
         }
+        .product-image {
+            max-width: 95%; max-height: 95%;
+            object-fit: contain;
+        }
+
+        /* Camada 3: Textos estilizados (Frente) */
         .price-box {
-            position: relative;
-            width: 100%; height: 100%;
-        }
-        .price-text {
             position: absolute;
-            /* AJUSTE ESSAS COORDENADAS PARA CAIR EXATAMENTE EM CIMA DA ETIQUETA DO PNG */
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #FFC107; /* Amarelo Destaque */
-            font-size: 50px;
-            text-shadow: 3px 3px 0px #111111;
+            z-index: 3;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            background: transparent;
+            overflow: hidden;
+            text-align: center;
         }
+
+        .old-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: #E53935;
+            text-decoration: line-through;
+            opacity: 0.85;
+        }
+
+        .new-price {
+            font-size: 36px;
+            font-weight: 900;
+            color: #FFFFFF;
+            line-height: 1;
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.2), 2px 2px 4px rgba(0,0,0,0.6);
+            white-space: nowrap;
+        }
+
+        .discount-box {
+            position: absolute;
+            z-index: 3;
+            display: flex; align-items: center; justify-content: center;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        .discount-number {
+            font-size: 28px;
+            font-weight: 900;
+            color: #FFFFFF;
+            line-height: 1;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
+        /* Coordenadas Absolutas Adaptadas da Planilha (1080x1350) */
+        /* PRODUTOS */
+        .pos-prod-1 { left: 68px; top: 343px; width: 459px; height: 411px; }
+        .pos-prod-2 { left: 558px; top: 342px; width: 459px; height: 411px; }
+        .pos-prod-3 { left: 68px; top: 777px; width: 459px; height: 418px; }
+        .pos-prod-4 { left: 558px; top: 778px; width: 459px; height: 418px; }
+
+        /* DESCONTOS */
+        .pos-disc-1 { left: 78px; top: 352px; width: 67px; height: 71px; }
+        .pos-disc-2 { left: 569px; top: 352px; width: 67px; height: 71px; }
+        .pos-disc-3 { left: 78px; top: 789px; width: 67px; height: 71px; }
+        .pos-disc-4 { left: 569px; top: 789px; width: 67px; height: 71px; }
+
+        /* PREÇOS */
+        .pos-price-1 { left: 103px; top: 679px; width: 312px; height: 54px; }
+        .pos-price-2 { left: 589px; top: 679px; width: 312px; height: 54px; }
+        .pos-price-3 { left: 103px; top: 1124px; width: 312px; height: 54px; }
+        .pos-price-4 { left: 589px; top: 1124px; width: 312px; height: 54px; }
     </style>
 </head>
 <body>
 
-    <div class="products-grid">
-        {% for offer in offers %}
-        <div class="product-box">
-            <img src="{{ offer.image_url }}" class="product-image" loading="eager" referrerpolicy="no-referrer" crossorigin="anonymous">
-        </div>
-        {% endfor %}
+    {% for offer in offers %}
+    <div class="product-box pos-prod-{{ loop.index }}">
+        <img src="{{ offer.image_url }}" class="product-image" loading="eager" referrerpolicy="no-referrer">
     </div>
+    {% endfor %}
 
-    <img src="{{ base_dir_uri }}/src/assets/templates/images/TD_template_vazado.png" class="template-overlay">
+    <img src="{{ mask_data_uri }}" class="template-overlay">
 
-    <div class="prices-grid">
-        {% for offer in offers %}
-        <div class="price-box">
-            <div class="price-text">{{ offer.price }}</div>
-        </div>
-        {% endfor %}
+    {% for offer in offers %}
+    <div class="price-box pos-price-{{ loop.index }}">
+        {% if offer.old_price %}
+        <div class="old-price">{{ offer.old_price }}</div>
+        {% endif %}
+        <div class="new-price">{{ offer.price }}</div>
     </div>
+    <div class="discount-box pos-disc-{{ loop.index }}">
+        <div class="discount-number">{{ offer.discount }}%</div>
+    </div>
+    {% endfor %}
 
 </body>
 </html>

@@ -139,15 +139,13 @@ class FacebookPublisherService:
 
         caption = self._build_rich_caption(selected_offers)
 
-        image_data: list[dict[str, str | None]] = []
+        image_data: list[dict[str, str | int | None]] = []
         for offer in selected_offers:
-            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
-            discount = offer.discount if offer.discount > 0 else self._calculate_discount(offer.price)
             image_data.append({
                 "image_url": offer.image_url,
                 "price": self._format_price(offer.price),
-                "old_price": self._format_price(old_price),
-                "discount": discount,
+                "old_price": self._format_price(offer.old_price) if offer.old_price and offer.old_price > 0 else "",
+                "discount": offer.discount or 0,
             })
 
         output_path = f"smart_{template_type}.jpg"
@@ -192,10 +190,10 @@ class FacebookPublisherService:
     ) -> tuple[str, list[ShopeeOffer]]:
 
         # 1. Filtra apenas ofertas que têm desconto real e válido no banco de dados
-        offers_with_discount = [o for o in offers if o.discount is not None and o.discount > 0]
+        offers_with_discount = [o for o in offers if o.discount > 0]
 
         # 2. Regra da Oferta Relâmpago: O produto DEVE ter desconto > 0 E ser classificado como flash
-        first_has_discount = first.discount is not None and first.discount > 0
+        first_has_discount = first.discount > 0
         if first_has_discount and self._is_flash_offer(first):
             return "relampago", [first]
 
@@ -211,20 +209,22 @@ class FacebookPublisherService:
             if offer.period_end_time > datetime.now(timezone.utc):
                 return True
 
-        if offer.discount is not None and offer.discount >= FLASH_DISCOUNT_THRESHOLD:
+        if offer.discount >= FLASH_DISCOUNT_THRESHOLD:
             return True
 
         return False
 
     def _build_rich_caption(self, offers: list[ShopeeOffer]) -> str:
+        if not offers:
+            return ""
+
         lines: list[str] = []
         for i, offer in enumerate(offers, start=1):
             truncated_name = offer.name[:CAPTION_MAX_NAME_LEN]
             if len(offer.name) > CAPTION_MAX_NAME_LEN:
                 truncated_name += "..."
 
-            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
-            old_price_str = self._format_price(old_price)
+            old_price_str = self._format_price(offer.old_price) if offer.old_price and offer.old_price > 0 else ""
             new_price_str = self._format_price(offer.price)
 
             if len(offers) > 1:
@@ -232,7 +232,8 @@ class FacebookPublisherService:
             else:
                 lines.append(f"🛍️ {truncated_name}")
 
-            lines.append(f"❌ De: {old_price_str}")
+            if old_price_str:
+                lines.append(f"❌ De: {old_price_str}")
             lines.append(f"✅ Por: {new_price_str}")
             lines.append(f"🔗 Compre aqui: {offer.short_url}")
             lines.append("")
@@ -245,21 +246,22 @@ class FacebookPublisherService:
 
         return "\n".join(lines)
 
-    async def preview_offer_batch_image(self, batch_size: int = 4, template_type: str = "top_deals") -> str | None:
-        offers = await self._get_next_unpublished_offers(limit=batch_size)
-        if not offers or len(offers) == 0:
-            logger.info("facebook_preview_skipped", extra={"data": {"reason": "no_offers"}})
-            return None
+    async def preview_offer_batch_image(self, batch_size: int = 4, template_type: str = "top_deals") -> str:
+        # Se o preview for de top_deals ou relampago, OBRIGA a buscar produtos com desconto real
+        require_discount = template_type in ["top_deals", "relampago"]
+        offers = await self._get_next_unpublished_offers(limit=batch_size, require_discount=require_discount)
 
-        image_data: list[dict[str, str | None]] = []
+        if not offers or len(offers) == 0:
+            logger.info("facebook_preview_skipped", extra={"data": {"reason": "no_offers_with_discount"}})
+            raise ValueError(f"Nenhum produto válido encontrado no banco para o template '{template_type}'.")
+
+        image_data: list[dict[str, str | int | None]] = []
         for offer in offers:
-            old_price = offer.old_price if offer.old_price > 0 else self._estimate_original_price(offer.price)
-            discount = offer.discount if offer.discount > 0 else self._calculate_discount(offer.price)
             image_data.append({
                 "image_url": offer.image_url,
                 "price": self._format_price(offer.price),
-                "old_price": self._format_price(old_price),
-                "discount": discount,
+                "old_price": self._format_price(offer.old_price) if offer.old_price and offer.old_price > 0 else "",
+                "discount": offer.discount or 0,
             })
 
         output_path = f"preview_{template_type}.jpg"
@@ -270,11 +272,14 @@ class FacebookPublisherService:
         )
         return output_path
 
-    async def _get_next_unpublished_offers(self, limit: int = 4) -> list[ShopeeOffer]:
+    async def _get_next_unpublished_offers(self, limit: int = 4, require_discount: bool = False) -> list[ShopeeOffer]:
+        stmt = select(ShopeeOffer).where(ShopeeOffer.is_published_facebook.is_(False))
+
+        if require_discount:
+            stmt = stmt.where(ShopeeOffer.discount > 0)
+
         stmt = (
-            select(ShopeeOffer)
-            .where(ShopeeOffer.is_published_facebook.is_(False))
-            .order_by(ShopeeOffer.created_at.asc())
+            stmt.order_by(ShopeeOffer.created_at.asc())
             .with_for_update(skip_locked=True)
             .limit(limit)
         )
@@ -302,13 +307,4 @@ class FacebookPublisherService:
         )
         return f"R$ {formatted}"
 
-    def _estimate_original_price(self, current_price: float, markup: float = 0.30) -> float:
-        """Simula o preço original assumindo que era markup% mais caro."""
-        return current_price * (1 + markup)
-
-    def _calculate_discount(self, current_price: float, markup: float = 0.30) -> int:
-        """Simula o desconto assumindo que o preço original era markup% mais caro."""
-        original_price = self._estimate_original_price(current_price, markup)
-        discount = int(((original_price - current_price) / original_price) * 100)
-        return discount
 

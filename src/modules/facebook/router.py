@@ -48,19 +48,19 @@ async def get_facebook_service(
 
 @router.post("/force-publish-batch")
 async def force_publish_batch(
-    batch_size: int = 4,
     service: FacebookPublisherService = Depends(get_facebook_service),
 ) -> dict[str, str]:
     try:
-        result = await service.publish_offer_batch(batch_size=batch_size)
+        # Chamada atualizada para o metodo de lote com imagens geradas
+        result = await service.publish_smart_batch()
         if result:
             return {
                 "status": "success",
-                "message": "Lote publicado com sucesso no Facebook",
+                "message": "Lote inteligente publicado com sucesso na pagina do Facebook",
             }
         return {
             "status": "warning",
-            "message": "Nenhum produto publicado. Verifique os logs ou se há ofertas suficientes no banco.",
+            "message": "Nenhum produto publicado. Verifique os logs se nao ha ofertas com desconto real.",
         }
     except Exception:
         logger.exception("facebook_force_publish_error")
